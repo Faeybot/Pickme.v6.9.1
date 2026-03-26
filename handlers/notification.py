@@ -29,7 +29,6 @@ async def show_notification_menu(callback: types.CallbackQuery, db: DatabaseServ
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text=f"🔓 SIAPA UNMASK SAYA ({unreads.get('unmask', 0)})", callback_data="notif_list_unmask")],
         [InlineKeyboardButton(text=f"📥 INBOX PESAN ({unreads.get('inbox', 0)})", callback_data="notif_list_inbox")],
-        [InlineKeyboardButton(text=f"🔥 MATCH / CRUSH ({unreads.get('match', 0)})", callback_data="notif_list_match")],
         [InlineKeyboardButton(text=f"👀 SIAPA MELIHAT PROFIL ({unreads.get('view', 0)})", callback_data="notif_list_view")],
         [InlineKeyboardButton(text="🏠 KEMBALI KE DASHBOARD", callback_data="back_to_dashboard")]
     ])
@@ -60,7 +59,6 @@ async def view_unified_list(callback: types.CallbackQuery, db: DatabaseService, 
     config = {
         "unmask": {"db": "UNMASK_CHAT", "title": "🔓 DAFTAR UNMASK SULTAN", "ctx": "unmask"},
         "inbox":  {"db": "CHAT", "title": "📥 INBOX PESAN AKTIF", "ctx": "inbox"},
-        "match":  {"db": "MATCH", "title": "🔥 DAFTAR MATCHING", "ctx": "match"},
         "view":   {"db": "VIEW", "title": "👀 PENGUNJUNG PROFIL", "ctx": "view"}
     }
     
