@@ -117,11 +117,15 @@ class DailyInteraction(Base):
     action = Column(String) 
     date_str = Column(String) 
 
+# --- UPDATE STRUKTUR TABEL CHAT SESSION ---
 class ChatSession(Base):
     __tablename__ = "chat_sessions"
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(BigInteger, ForeignKey("users.id"))
     target_id = Column(BigInteger)
+    thread_id = Column(Integer, nullable=True) 
+    last_message = Column(Text, nullable=True) 
+    last_updated = Column(BigInteger, default=0) 
     expires_at = Column(BigInteger) 
 
 # ==========================================
@@ -141,22 +145,11 @@ class DatabaseService:
         async with self.engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
             if "postgres" in str(self.engine.url):
+                # HANYA MENAMBAHKAN KOLOM BARU YANG DIBUTUHKAN UNTUK HYBRID DATABASE
                 queries = [
-                    "ALTER TABLE users ADD COLUMN IF NOT EXISTS birth_date TIMESTAMP;",
-                    "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_active_at TIMESTAMP;",
-                    "ALTER TABLE users ADD COLUMN IF NOT EXISTS daily_feed_text_quota INTEGER DEFAULT 3;",
-                    "ALTER TABLE users ADD COLUMN IF NOT EXISTS daily_feed_photo_quota INTEGER DEFAULT 1;",
-                    "ALTER TABLE users ADD COLUMN IF NOT EXISTS daily_open_profile_quota INTEGER DEFAULT 0;",
-                    "ALTER TABLE users ADD COLUMN IF NOT EXISTS daily_unmask_quota INTEGER DEFAULT 0;",
-                    "ALTER TABLE users ADD COLUMN IF NOT EXISTS daily_message_quota INTEGER DEFAULT 0;",
-                    "ALTER TABLE users ADD COLUMN IF NOT EXISTS daily_swipe_count INTEGER DEFAULT 0;",
-                    "ALTER TABLE users ADD COLUMN IF NOT EXISTS extra_feed_text_quota INTEGER DEFAULT 0;",
-                    "ALTER TABLE users ADD COLUMN IF NOT EXISTS extra_feed_photo_quota INTEGER DEFAULT 0;",
-                    "ALTER TABLE users ADD COLUMN IF NOT EXISTS extra_message_quota INTEGER DEFAULT 0;",
-                    "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_swipe_at TIMESTAMP;",
-                    "ALTER TABLE users ADD COLUMN IF NOT EXISTS weekly_free_boost INTEGER DEFAULT 0;",
-                    "ALTER TABLE users ADD COLUMN IF NOT EXISTS paid_boost_balance INTEGER DEFAULT 0;",
-                    "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_boost_date VARCHAR;"
+                    "ALTER TABLE chat_sessions ADD COLUMN IF NOT EXISTS thread_id INTEGER;",
+                    "ALTER TABLE chat_sessions ADD COLUMN IF NOT EXISTS last_message TEXT;",
+                    "ALTER TABLE chat_sessions ADD COLUMN IF NOT EXISTS last_updated BIGINT DEFAULT 0;"
                 ]
                 for q in queries:
                     try: await conn.execute(text(q))
@@ -261,19 +254,39 @@ class DatabaseService:
             await session.commit()
             return True
 
+    # --- PUSAT LOGIKA CHAT SESSION ---
     async def get_active_chat_session(self, user_id: int, target_id: int):
         async with self.session_factory() as session:
             res = await session.execute(select(ChatSession).where(( (ChatSession.user_id == user_id) & (ChatSession.target_id == target_id) ) | ( (ChatSession.user_id == target_id) & (ChatSession.target_id == user_id) )))
-            session_data = res.scalar_one_or_none()
-            return session_data.expires_at if session_data else None
+            return res.scalar_one_or_none()
 
-    async def upsert_chat_session(self, user_id: int, target_id: int, expires_at: int):
+    async def upsert_chat_session(self, user_id: int, target_id: int, expires_at: int, thread_id: int = None, last_message: str = None):
+        now_ts = int(datetime.datetime.now().timestamp())
         async with self.session_factory() as session:
             res = await session.execute(select(ChatSession).where(( (ChatSession.user_id == user_id) & (ChatSession.target_id == target_id) ) | ( (ChatSession.user_id == target_id) & (ChatSession.target_id == user_id) )))
             session_data = res.scalar_one_or_none()
-            if session_data: session_data.expires_at = expires_at
-            else: session.add(ChatSession(user_id=user_id, target_id=target_id, expires_at=expires_at))
+            
+            if session_data: 
+                session_data.expires_at = expires_at
+                session_data.last_updated = now_ts
+                if thread_id is not None: session_data.thread_id = thread_id
+                if last_message is not None: session_data.last_message = last_message
+            else: 
+                session.add(ChatSession(
+                    user_id=user_id, target_id=target_id, expires_at=expires_at,
+                    thread_id=thread_id, last_message=last_message, last_updated=now_ts
+                ))
             await session.commit()
+
+    async def get_inbox_sessions(self, user_id: int):
+        # FUNGSI BARU: Mengambil seluruh riwayat obrolan user untuk ditampilkan di Inbox.
+        async with self.session_factory() as session:
+            query = select(ChatSession).where(
+                (ChatSession.user_id == user_id) | (ChatSession.target_id == user_id)
+            ).order_by(ChatSession.last_updated.desc())
+            
+            result = await session.execute(query)
+            return result.scalars().all()
 
     async def record_swipe(self, user_id: int, target_id: int, action: str):
         async with self.session_factory() as session:
@@ -310,23 +323,16 @@ class DatabaseService:
             expiry_hours = 48 if (user_db and user_db.is_vip_plus) else 24
             time_limit = datetime.datetime.utcnow() - datetime.timedelta(hours=expiry_hours)
             
-            if notif_type == "CHAT":
-                type_filter = UserNotification.type == "CHAT"
-            elif notif_type == "UNMASK_CHAT":
-                type_filter = UserNotification.type == "UNMASK_CHAT"
-            else:
-                type_filter = UserNotification.type.ilike(f"%{notif_type}%")
+            if notif_type == "CHAT": type_filter = UserNotification.type == "CHAT"
+            elif notif_type == "UNMASK_CHAT": type_filter = UserNotification.type == "UNMASK_CHAT"
+            else: type_filter = UserNotification.type.ilike(f"%{notif_type}%")
 
             query = select(User, UserNotification.created_at).join(
                 UserNotification, UserNotification.sender_id == User.id
             ).where(
                 and_(
-                    UserNotification.user_id == user_id,
-                    type_filter,
-                    or_(
-                        not_(UserNotification.type.in_(["CHAT", "UNMASK_CHAT"])),
-                        UserNotification.created_at > time_limit
-                    )
+                    UserNotification.user_id == user_id, type_filter,
+                    or_(not_(UserNotification.type.in_(["CHAT", "UNMASK_CHAT"])), UserNotification.created_at > time_limit)
                 )
             ).order_by(UserNotification.created_at.desc())
             
@@ -340,20 +346,13 @@ class DatabaseService:
                     u.notif_date = row[1] 
                     unique_users.append(u)
                     if len(unique_users) >= limit: break
-            
-            # KITA HAPUS AUTO-READ DI SINI. Angka tidak akan hilang sebelum pesan benar-benar dibuka.
             return unique_users
 
-    # --- FUNGSI BARU UNTUK MENGHILANGKAN ANGKA (N) SETELAH DIBUKA ---
     async def mark_notif_read(self, user_id: int, sender_id: int, notif_type: str):
         async with self.session_factory() as session:
             await session.execute(
                 update(UserNotification).where(
-                    and_(
-                        UserNotification.user_id == user_id,
-                        UserNotification.sender_id == sender_id,
-                        UserNotification.type == notif_type
-                    )
+                    and_(UserNotification.user_id == user_id, UserNotification.sender_id == sender_id, UserNotification.type == notif_type)
                 ).values(is_read=True)
             )
             await session.commit()
@@ -362,11 +361,7 @@ class DatabaseService:
         async with self.session_factory() as session:
             check = await session.execute(
                 select(UserNotification).where(
-                    and_(
-                        UserNotification.user_id == user_id,
-                        UserNotification.sender_id == target_id,
-                        UserNotification.type == "LIKE"
-                    )
+                    and_(UserNotification.user_id == user_id, UserNotification.sender_id == target_id, UserNotification.type == "LIKE")
                 )
             )
             like_entry = check.scalar_one_or_none()
@@ -381,15 +376,7 @@ class DatabaseService:
 
     async def remove_interaction(self, user_id: int, target_id: int, notif_type: str):
         async with self.session_factory() as session:
-            await session.execute(
-                delete(UserNotification).where(
-                    and_(
-                        UserNotification.user_id == user_id,
-                        UserNotification.sender_id == target_id,
-                        UserNotification.type.ilike(f"%{notif_type}%")
-                    )
-                )
-            )
+            await session.execute(delete(UserNotification).where(and_(UserNotification.user_id == user_id, UserNotification.sender_id == target_id, UserNotification.type.ilike(f"%{notif_type}%"))))
             await session.commit()
         
     async def award_reply_points(self, user_id: int, target_id: int, context: str):
