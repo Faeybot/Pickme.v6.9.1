@@ -22,7 +22,7 @@ from handlers import (
     admin, start, feed, discovery, profile, 
     pricing, boost, registration, status,
     withdraw, chat, unmask, notification as notifications_handler,
-    referrals, who_like_me
+    referrals, who_like_me, match
 )
 from handlers.referrals import schedule_referral_evaluation
 
@@ -108,6 +108,7 @@ async def main():
     dp.include_router(feed.router)
     dp.include_router(discovery.router)
     dp.include_router(who_like_me.router)
+    dp.include_router(match.router)
     dp.include_router(chat.router)
     dp.include_router(unmask.router)
     dp.include_router(profile.router)
