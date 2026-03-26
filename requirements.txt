@@ -1,0 +1,7 @@
+aiogram==3.17.0
+sqlalchemy==2.0.38
+aiosqlite==0.21.0
+python-dotenv==1.0.1
+geopy==2.4.1
+aiohttp==3.11.11
+asyncpg==0.30.0
