@@ -66,8 +66,14 @@ def get_age_keyboard():
 @router.callback_query(F.data == "menu_discovery")
 async def show_discovery_lobby(callback: types.CallbackQuery, db: DatabaseService, state: FSMContext):
     await state.clear()
-    user = await db.get_user(callback.from_user.id)
+    user_id = callback.from_user.id
+    user = await db.get_user(user_id)
     if not user: return await callback.answer("❌ Profil tidak ditemukan.", show_alert=True)
+
+    # Mengambil notifikasi count untuk Like dan Match
+    unreads = await db.get_all_unread_counts(user_id)
+    count_like = unreads.get('like', 0)
+    count_match = unreads.get('match', 0)
 
     limit = 50 if user.is_vip_plus else 30 if user.is_vip else 20
     sisa = max(0, limit - user.daily_swipe_count)
@@ -87,6 +93,8 @@ async def show_discovery_lobby(callback: types.CallbackQuery, db: DatabaseServic
 
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🚀 MULAI MENCARI", callback_data="disc_start_search")],
+        [InlineKeyboardButton(text=f"❤️ SIAPA SUKA SAYA ({count_like})", callback_data="list_who_like_me")],
+        [InlineKeyboardButton(text=f"🔥 DAFTAR MATCH ({count_match})", callback_data="list_my_matches")],
         [InlineKeyboardButton(text="⚙️ UBAH FILTER USIA", callback_data="disc_set_age")],
         [InlineKeyboardButton(text="📍 UPDATE LOKASI", callback_data="disc_update_location")],
         [InlineKeyboardButton(text="🏠 DASHBOARD SAYA", callback_data="back_to_dashboard")]
