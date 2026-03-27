@@ -45,7 +45,7 @@ def format_feed_post(user: User, caption: str, is_anon: bool, bot_username: str)
     link_profile = f"https://t.me/{bot_username}?start=view_{user.id}_{origin_flag}"
     
     # Sesuai blueprint: Tampilkan link [Lihat Profil]
-    header = f"{name_header} | <a href={link_profile}>[Lihat Profil]</a>"
+    header = f"{name_header} | <a href='{link_profile}'>[Lihat Profil]</a>"
     content = f"<blockquote><code><i>{html.escape(caption)}</i></code></blockquote>"
     
     city_name = user.location_name.replace(' ', '').title() if user.location_name else "Unknown"
