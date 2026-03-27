@@ -30,7 +30,7 @@ async def execute_repost_logic(bot: Bot, user_id: int, count: int, interval_hour
             link_profile = f"https://t.me/{bot_info.username}?start=view_{user.id}"
             
             # Format visual sinkron dengan Feed.py
-            header = f"🚀 <b>[{label}]</b>\n👤 <b>{display_name.upper()}</b> | <a href='{link_profile}'>VIEW PROFILE</a>"
+            header = f"🚀 <b>[{label}]</b>\n👤 <b>{display_name.upper()}</b> | <a href=\"{link_profile}\">VIEW PROFILE</a>"
             isi_feed = f"<blockquote>{html.escape(user.bio or 'Cek profilku yuk! Mari berkenalan.')}</blockquote>"
             full_text = f"{header}\n<code>{'—' * 20}</code>\n{isi_feed}\n\n📍 {user.city_hashtag} #{user.gender.upper()} #PickMeBoost"
 
