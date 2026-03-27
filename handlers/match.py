@@ -32,7 +32,7 @@ async def view_my_matches(callback: types.CallbackQuery, db: DatabaseService, bo
             # Deep link membuka profil target dalam mode Match
             url = f"https://t.me/{bot_username}?start=view_{person.id}_match"
             
-            text_content += f"{i}. <b>{name}</b>, {age}th, {city}. <a href='{url}'>[Lihat & Chat]</a>\n\n"
+            text_content += f"{i}. <b>{name}</b>, {age}th, {city}. <a href=\"{url}\">[Lihat & Chat]</a>\n\n"
 
     kb_nav = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🔙 KEMBALI KE DISCOVERY", callback_data="menu_discovery")],
