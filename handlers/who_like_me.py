@@ -36,9 +36,9 @@ async def view_who_liked_me(callback: types.CallbackQuery, db: DatabaseService, 
             url_lock = f"https://t.me/{bot_username}?start=pricing"
             
             if is_locked:
-                text_content += f"{i}. <b>{name}</b>, {age}th, {city}. <a href='{url_lock}'>[🔒 Upgrade VIP+]</a>\n\n"
+                text_content += f"{i}. <b>{name}</b>, {age}th, {city}. <a href=\"{url_lock}\">[🔒 Upgrade VIP+]</a>\n\n"
             else:
-                text_content += f"{i}. <b>{name}</b>, {age}th, {city}. <a href='{url}'>[Lihat Profil]</a>\n\n"
+                text_content += f"{i}. <b>{name}</b>, {age}th, {city}. <a href=\"{url}\">[Lihat Profil]</a>\n\n"
 
     kb_nav = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🔙 KEMBALI KE DISCOVERY", callback_data="menu_feed")],
