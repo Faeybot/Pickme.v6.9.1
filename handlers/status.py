@@ -27,7 +27,7 @@ async def show_status(callback: types.CallbackQuery, db: DatabaseService):
         masa_aktif = "Seumur Hidup"
 
     # --- 2. LOGIKA TIKET BOOST ---
-    free_boost = getattr(user, 'free_boost_quota', 0)
+    free_boost = getattr(user, 'weekly_free_boost', 0)
     paid_boost = getattr(user, 'paid_boost_balance', 0)
     total_boost = free_boost + paid_boost
 
