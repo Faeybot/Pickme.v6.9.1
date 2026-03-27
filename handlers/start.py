@@ -32,22 +32,30 @@ def get_main_menu():
     kb = [[KeyboardButton(text="📱 DASHBOARD UTAMA")]]
     return ReplyKeyboardMarkup(keyboard=kb, resize_keyboard=True, is_persistent=True)
 
-def get_dashboard_kb():
+def get_dashboard_kb(inbox_count=0, notif_count=0):
+    """Fungsi yang sudah di-upgrade untuk menerima angka notifikasi dinamis"""
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📸 MENU FEED", callback_data="menu_feed"), 
-         InlineKeyboardButton(text="🔍 DISCOVERY", callback_data="menu_discovery")],
-        [InlineKeyboardButton(text="🎁 UNDANG TEMAN (+5.000 Poin)", callback_data="menu_referral")],
-        [InlineKeyboardButton(text="🛒 TOP UP & UPGRADE", callback_data="menu_pricing")],
-        [InlineKeyboardButton(text="🔔 NOTIFIKASI", callback_data="menu_notifications"), 
-         InlineKeyboardButton(text="👤 PROFIL SAYA", callback_data="menu_profile")],
-        [InlineKeyboardButton(text="📊 STATUS & KUOTA", callback_data="menu_status"), 
-         InlineKeyboardButton(text="💰 WITHDRAW", callback_data="menu_withdraw")]
+        [InlineKeyboardButton(text="🌎 DISCOVERY", callback_data="menu_discovery"),
+         InlineKeyboardButton(text="🎭 FEED ANONIM", callback_data="menu_feed")],
+         
+        # --- MENU PESAN (INBOX) & NOTIFIKASI SUDAH DIPISAH ---
+        [InlineKeyboardButton(text=f"📥 PESAN ({inbox_count})", callback_data="menu_inbox"), 
+         InlineKeyboardButton(text=f"🔔 NOTIFIKASI ({notif_count})", callback_data="menu_notifications")],
+         
+        [InlineKeyboardButton(text="⚙️ PROFIL SAYA", callback_data="menu_profile"),
+         InlineKeyboardButton(text="🛒 TOP UP & UPGRADE", callback_data="menu_pricing")],
+         
+        [InlineKeyboardButton(text="🎁 UNDANG TEMAN", callback_data="menu_referral"),
+         InlineKeyboardButton(text="📊 STATUS & KUOTA", callback_data="menu_status")],
+         
+        [InlineKeyboardButton(text="💰 WITHDRAW", callback_data="menu_withdraw")]
     ])
 
 # ==========================================
 # 2. HANDLER UTAMA (/start & Tombol Dashboard)
 # ==========================================
 @router.message(CommandStart())
+@router.message(F.text == "📱 DASHBOARD UTAMA")
 @router.message(F.text == "📱 HOME PickMe")
 async def command_start_handler(message: types.Message, command: CommandObject = None, db: DatabaseService = None, bot: Bot = None, state: FSMContext = None):
     if state:
@@ -56,7 +64,7 @@ async def command_start_handler(message: types.Message, command: CommandObject =
     args = command.args if command else None 
     user_id = message.from_user.id 
 
-    # --- A. GATEKEEPER ASLI V5 (Import dari registration.py) ---
+    # --- A. GATEKEEPER ASLI V5 (Pengecekan Channel & Grup) ---
     from handlers.registration import check_membership, CHANNEL_LINK, GROUP_LINK
     
     is_joined = await check_membership(bot, user_id)
@@ -98,7 +106,6 @@ async def command_start_handler(message: types.Message, command: CommandObject =
             return await process_profile_preview(message, bot, db, viewer_id=user_id, target_id=target_id, context_source=origin_type)
         except Exception as e:
             logging.error(f"Error Deep Link Routing: {e}")
-            # FIX: Mengganti 'pass' dengan peringatan agar tidak bablas ke Dashboard
             return await message.answer("⚠️ Gagal memuat profil. Format link tidak valid atau ada kendala sistem.")
 
     # --- D. TAMPILKAN DASHBOARD UTAMA ---
@@ -113,18 +120,22 @@ async def command_start_handler(message: types.Message, command: CommandObject =
         f"<code>━━━━━━━━━━━━━━━━━━</code>"
     )
 
+    # Mengambil angka notifikasi dari database sebelum merender keyboard
+    unreads = await db.get_all_unread_counts(user_id)
+    count_inbox = unreads.get('inbox', 0)
+    count_notif = unreads.get('unmask', 0) + unreads.get('view', 0)
+
     try:
-        await message.answer_photo(photo=BANNER_PHOTO_ID, caption=dashboard_text, reply_markup=get_dashboard_kb(), parse_mode="HTML")
+        await message.answer_photo(photo=BANNER_PHOTO_ID, caption=dashboard_text, reply_markup=get_dashboard_kb(count_inbox, count_notif), parse_mode="HTML")
     except Exception as e:
         logging.error(f"Gagal kirim foto dashboard: {e}")
-        await message.answer(dashboard_text, reply_markup=get_dashboard_kb(), parse_mode="HTML")
+        await message.answer(dashboard_text, reply_markup=get_dashboard_kb(count_inbox, count_notif), parse_mode="HTML")
 
 # ==========================================
 # 3. HANDLER CALLBACK (Navigasi Mulus)
 # ==========================================
 @router.callback_query(F.data == "check_join_start")
 async def verify_join_start(callback: types.CallbackQuery, bot: Bot, db: DatabaseService, state: FSMContext):
-    # Menggunakan logika check_membership asli dari v5
     from handlers.registration import check_membership
     if await check_membership(bot, callback.from_user.id):
         try: await callback.message.delete()
@@ -138,7 +149,8 @@ async def verify_join_start(callback: types.CallbackQuery, bot: Bot, db: Databas
 @router.callback_query(F.data == "back_to_dashboard")
 async def back_to_dashboard(callback: types.CallbackQuery, db: DatabaseService, bot: Bot, state: FSMContext):
     await state.clear()
-    user = await db.get_user(callback.from_user.id)
+    user_id = callback.from_user.id
+    user = await db.get_user(user_id)
     
     if not user:
         return await callback.answer("❌ Sesi berakhir. Ketik /start kembali.", show_alert=True)
@@ -153,13 +165,18 @@ async def back_to_dashboard(callback: types.CallbackQuery, db: DatabaseService, 
         f"<code>━━━━━━━━━━━━━━━━━━</code>"
     )
 
+    # Mengambil angka notifikasi dari database sebelum merender keyboard
+    unreads = await db.get_all_unread_counts(user_id)
+    count_inbox = unreads.get('inbox', 0)
+    count_notif = unreads.get('unmask', 0) + unreads.get('view', 0)
+
     media = InputMediaPhoto(media=BANNER_PHOTO_ID, caption=dashboard_text, parse_mode="HTML")
     
     try:
-        await callback.message.edit_media(media=media, reply_markup=get_dashboard_kb())
+        await callback.message.edit_media(media=media, reply_markup=get_dashboard_kb(count_inbox, count_notif))
     except Exception as e:
         try: await callback.message.delete()
         except: pass
-        await bot.send_photo(chat_id=callback.from_user.id, photo=BANNER_PHOTO_ID, caption=dashboard_text, reply_markup=get_dashboard_kb(), parse_mode="HTML")
+        await bot.send_photo(chat_id=user_id, photo=BANNER_PHOTO_ID, caption=dashboard_text, reply_markup=get_dashboard_kb(count_inbox, count_notif), parse_mode="HTML")
     
     await callback.answer()
