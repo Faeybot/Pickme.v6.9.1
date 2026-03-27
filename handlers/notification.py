@@ -94,18 +94,18 @@ async def view_unified_list(callback: types.CallbackQuery, db: DatabaseService, 
             has_date = hasattr(person, 'notif_date') and person.notif_date
 
             if menu_type == "unmask":
-                text_content += f"{i}. <b>{name}</b>, {age}th, {city}, jatuh cinta padamu. <a href='{url}'>[Lihat Profil & Balas]</a>\n\n"
+                text_content += f"{i}. <b>{name}</b>, {age}th, {city}, jatuh cinta padamu. <a href=\"{url}\">[Lihat Profil & Balas]</a>\n\n"
             elif menu_type == "inbox":
                 expiry_hours = 48 if current_user.is_vip_plus else 24
                 exp_date = (person.notif_date + timedelta(hours=expiry_hours)).strftime("%H:%M %d/%m/%Y") if has_date else "Segera"
-                text_content += f"{i}. <b>{name}</b>, {age}th, {city}. (Hilang {exp_date}) <a href='{url}'>[Balas Pesan]</a>\n\n"
+                text_content += f"{i}. <b>{name}</b>, {age}th, {city}. (Hilang {exp_date}) <a href=\"{url}\">[Balas Pesan]</a>\n\n"
             elif menu_type == "match":
-                text_content += f"{i}. <b>{name}</b>, {age}th, {city}. <a href='{url}'>[Lihat Profil & Chat]</a>\n\n"
+                text_content += f"{i}. <b>{name}</b>, {age}th, {city}. <a href=\"{url}\">[Lihat Profil & Chat]</a>\n\n"
             else: # Menu VIEW
                 if is_locked:
-                    text_content += f"{i}. <b>{name}</b>, {age}th, {city}. <a href='{url_lock}'>[🔒 Upgrade VIP]</a>\n"
+                    text_content += f"{i}. <b>{name}</b>, {age}th, {city}. <a href=\"{url_lock}\">[🔒 Upgrade VIP]</a>\n"
                 else:
-                    text_content += f"{i}. <b>{name}</b>, {age}th, {city}. <a href='{url}'>[Lihat Profil]</a>\n"
+                    text_content += f"{i}. <b>{name}</b>, {age}th, {city}. <a href=\"{url}\">[Lihat Profil]</a>\n"
 
     kb_nav = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🔙 KEMBALI", callback_data="menu_notifications")],
